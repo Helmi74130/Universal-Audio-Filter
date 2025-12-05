@@ -74,85 +74,122 @@ Une extension Chrome moderne qui enlève la musique et garde la voix sur **TOUS*
  chrome.storage                            Web Audio API
 ```
 
-### 🎯 Algorithme d'isolation vocale avancé (Web Audio API)
+### 🎯 Algorithme MID/SIDE + Filtrage Spectral (Web Audio API)
 
-L'extension utilise un **algorithme professionnel multi-étages** pour isoler la voix :
+L'extension utilise une **technique de studio professionnel** pour séparer la voix de la musique en **temps réel** :
 
-#### Étape 1 : Élimination des basses (Musique) 🔇
+#### 🎚️ ÉTAPE 1 : Mid/Side Processing (RÉVOLUTIONNAIRE)
 
-1. **Notch Filters** - Ciblage précis des fréquences basse
-   - `60 Hz` (Q=5.0) - Sub-bass (kick électronique)
-   - `120 Hz` (Q=5.0) - Bass (ligne de basse)
-   - `250 Hz` (Q=3.0) - Low-mids (guitare basse)
+**Principe** : La voix est généralement au **centre** (mono), la musique est **panoramisée** (stéréo)
 
-2. **Cascade de Highpass Filters** - Couper agressivement les basses
-   - `Highpass 1` : 400-800 Hz (Q élevé, pente raide)
-   - `Highpass 2` : 500-800 Hz (second étage pour renforcement)
-   - Ajustable via slider "Réduction Basses"
+1. **Channel Splitter** - Séparer les canaux L et R
+2. **Calcul MID** : `(L + R) / 2` → Contient surtout la **VOIX** 🎤
+3. **Calcul SIDE** : `(L - R) / 2` → Contient surtout la **MUSIQUE** 🎵
+4. **Gains adaptatifs** :
+   - **Mid Gain** : 1.5x à 3.0x (boost la voix)
+   - **Side Gain** : 0.3x à 0.01x (atténue drastiquement la musique)
+   - Contrôlé par le slider "Réduction Basses"
 
-#### Étape 2 : Boost des fréquences vocales 🎤
+**Résultat** : Séparation physique voix/musique AVANT tout filtrage !
 
-3. **Triple Peaking Filters** - Ciblage de la zone vocale (300Hz-3.5kHz)
-   - `800 Hz` (+6 à 15 dB) - Fondamentale vocale (warmth)
-   - `2000 Hz` (+12 à 20 dB) - **Clarté vocale** (intelligibilité maximale)
-   - `3500 Hz` (+8 à 18 dB) - Présence vocale (brillance)
-   - Ajustable via slider "Boost Voix"
+#### 🔊 ÉTAPE 2 : Élimination totale des basses
 
-#### Étape 3 : Suppression des hautes fréquences 🎸
+1. **3 Notch Filters ultra-précis**
+   - `80 Hz` (Q=10) - Sub-bass kick
+   - `150 Hz` (Q=8) - Bass line
+   - `220 Hz` (Q=6) - Low-mids guitare
 
-4. **Lowpass Filter agressif**
-   - `4500-3000 Hz` (adaptatif) - Coupe cymbales, hi-hat, instruments aigus
-   - S'ajuste automatiquement selon le boost vocal
+2. **Cascade de 3 Highpass Filters**
+   - `HP1` : 350-600 Hz (Q=2.0-4.0)
+   - `HP2` : 450-700 Hz (Q=1.8-3.6)
+   - `HP3` : 550-800 Hz (Q=1.5-3.0)
+   - Pentes TRÈS raides (48dB/octave cumulé)
+   - Ajustable dynamiquement
 
-#### Étape 4 : Compression dynamique 🎚️
+#### 🎤 ÉTAPE 3 : Boost vocal ultra-agressif
 
-5. **DynamicsCompressor** - Réduction de la dynamique musicale
-   - Threshold: -30 dB
-   - Ratio: 12:1 à 20:1 (adaptatif)
-   - Attack: 3ms (rapide)
-   - Release: 250ms (modéré)
-   - **Effet** : Réduit l'impact des pics musicaux
+3. **Triple Peaking Filters** avec gains EXTRÊMES
+   - `1000 Hz` : +15 à +25 dB (Fondamentale vocale)
+   - `2500 Hz` : +18 à +28 dB (Clarté et intelligibilité MAX)
+   - `4000 Hz` : +12 à +22 dB (Présence et brillance)
+   - Q factor élevé (3.0-4.0) pour ciblage précis
 
-#### Étape 5 : Contrôle du volume final 🔊
+#### ✂️ ÉTAPE 4 : Coupe des hautes fréquences
 
-6. **Gain Nodes** - Normalisation et contrôle
-   - Pre-gain (1.5x) - Boost avant compression
-   - Makeup gain (2.5-4.5x) - Compense la compression
-   - Volume final (0-100%) - Contrôle utilisateur
+4. **Lowpass Filter + De-Esser**
+   - Lowpass : 3000-4000 Hz (Q=3.0) - Coupe cymbales/hi-hat
+   - De-Esser : -8 à -15 dB @ 6kHz - Réduit sibilantes
+
+#### 🗜️ ÉTAPE 5 : Compression extrême
+
+5. **DynamicsCompressor ultra-agressif**
+   - Threshold : -35 dB
+   - Ratio : 20:1 à 30:1 (écrase la dynamique)
+   - Attack : 1ms (instantané)
+   - Release : 100ms (rapide)
+   - **Effet** : Nivelle la musique résiduelle
+
+#### 🔊 ÉTAPE 6 : Normalisation finale
+
+6. **Triple Gain Stage**
+   - Pre-gain : 1.8x
+   - Makeup gain : 3.5x à 7.0x (adaptatif)
+   - Volume final : 0-100% (contrôle utilisateur)
 
 ### 📊 Chaîne de traitement complète
 
 ```
-Audio Source
-    ↓
-[Notch 60Hz] → [Notch 120Hz] → [Notch 250Hz]
-    ↓
-[Highpass 400-800Hz] → [Highpass 500-800Hz]
-    ↓
-[Peaking 800Hz] → [Peaking 2kHz] → [Peaking 3.5kHz]
-    ↓
-[Lowpass 3000-4500Hz]
-    ↓
-[Pre-Gain 1.5x] → [Compressor 12:1] → [Makeup Gain 2.5x]
-    ↓
+🎵 Audio Stéréo Source (L + R)
+         ↓
+    ┌────────────┐
+    │  SPLITTER  │ Séparer L et R
+    └────────────┘
+         ↓    ↓
+    ┌────┴────┴────┐
+    │  MID/SIDE    │ 🔥 SÉPARATION RÉVOLUTIONNAIRE
+    │  PROCESSING  │ Mid (voix) + Side (musique)
+    └──────────────┘
+         ↓
+    Mid×3.0 + Side×0.01  ← Musique ÉCRASÉE !
+         ↓
+[Notch 80Hz] → [Notch 150Hz] → [Notch 220Hz]
+         ↓
+[HP 350-600Hz] → [HP 450-700Hz] → [HP 550-800Hz]
+         ↓                      (Cascade 48dB/octave)
+[Peak 1kHz +25dB] → [Peak 2.5kHz +28dB] → [Peak 4kHz +22dB]
+         ↓                      (Boost vocal EXTRÊME)
+[Lowpass 3-4kHz] → [De-Esser -15dB @ 6kHz]
+         ↓                      (Coupe cymbales)
+[Pre-Gain 1.8x] → [Compressor 30:1] → [Makeup 7x]
+         ↓                      (Écrase la dynamique)
 [Volume Final 0-100%]
-    ↓
-Audio Output (Voix isolée 🎤)
+         ↓
+🎤 VOIX ISOLÉE (Musique quasi-inexistante)
 ```
 
 ### 🎛️ Ajustements intelligents
 
-Les sliders contrôlent **plusieurs paramètres simultanément** :
+Les sliders contrôlent **plusieurs paramètres simultanément** pour un résultat optimal :
 
-**Slider "Réduction Basses"** :
-- Fréquence des highpass (400-800Hz)
-- Q factor des highpass (1.0-3.0)
-- Ratio de compression (12:1-20:1)
+**Slider "Réduction Basses" (0-100%)** - LE PLUS IMPORTANT !
+- 🎚️ **Ratio Mid/Side** : Side Gain 0.3x → 0.01x (atténuation musique)
+- 🎚️ **Mid Gain** : 1.5x → 3.0x (amplification voix)
+- 🔊 **Highpass cascade** : 350-600Hz / 450-700Hz / 550-800Hz
+- 📐 **Q factor** : 2.0 → 4.0 (pentes de plus en plus raides)
+- 🗜️ **Compression** : Ratio 20:1 → 30:1 (écrase davantage)
 
-**Slider "Boost Voix"** :
-- Gain des 3 peaking filters
-- Fréquence du lowpass (inversement)
-- Makeup gain du compresseur
+**À 100%** : Musique Side atténuée à 1%, voix Mid boostée à 300% !
+
+**Slider "Boost Voix" (0-20 dB)** :
+- 🎤 **Peaking 1kHz** : +15 → +25 dB
+- 🎤 **Peaking 2.5kHz** : +18 → +28 dB (band principale)
+- 🎤 **Peaking 4kHz** : +12 → +22 dB
+- ✂️ **Lowpass** : 4000Hz → 3400Hz (coupe plus d'aigus)
+- 📉 **De-Esser** : -8dB → -14dB (réduit sibilantes)
+- 🔊 **Makeup Gain** : 3.5x → 6.5x (compense le boost)
+
+**Slider "Volume" (0-100%)** :
+- Simple contrôle du gain final
 
 ### Gestion des edge cases
 

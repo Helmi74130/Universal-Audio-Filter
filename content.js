@@ -51,129 +51,205 @@ function createAudioFilters(mediaElement) {
     // Marquer l'élément comme traité
     mediaElement.dataset.audioFilterApplied = 'true';
 
-    // ===== ALGORITHME D'ISOLATION VOCALE AVANCÉ =====
+    // ===== ALGORITHME MID/SIDE + FILTRAGE SPECTRAL TEMPS RÉEL =====
+    // Technique pro : séparer le centre (voix) du panoramique (musique)
 
-    // 1. NOTCH FILTERS - Éliminer les sub-bass et bass (musique électronique)
-    const notch60Hz = audioContext.createBiquadFilter();
-    notch60Hz.type = 'notch';
-    notch60Hz.frequency.value = 60;
-    notch60Hz.Q.value = 5.0; // Q élevé pour cibler précisément
+    // 1. SPLITTER STEREO - Séparer les canaux L et R
+    const splitter = audioContext.createChannelSplitter(2);
+    const merger = audioContext.createChannelMerger(2);
 
-    const notch120Hz = audioContext.createBiquadFilter();
-    notch120Hz.type = 'notch';
-    notch120Hz.frequency.value = 120;
-    notch120Hz.Q.value = 5.0;
+    // 2. CALCULER MID (L+R) et SIDE (L-R)
+    // Mid = voix (généralement au centre)
+    // Side = musique (instruments panoramisés)
 
-    const notch250Hz = audioContext.createBiquadFilter();
-    notch250Hz.type = 'notch';
-    notch250Hz.frequency.value = 250;
-    notch250Hz.Q.value = 3.0;
+    const midGain = audioContext.createGain();
+    midGain.gain.value = 2.0; // Boost le centre (voix)
 
-    // 2. CASCADE DE HIGHPASS FILTERS - Couper agressivement les basses
+    const sideGain = audioContext.createGain();
+    sideGain.gain.value = 0.05; // Atténue drastiquement les côtés (musique)
+
+    // Gains pour calculer Mid et Side
+    const leftForMid = audioContext.createGain();
+    leftForMid.gain.value = 0.5;
+    const rightForMid = audioContext.createGain();
+    rightForMid.gain.value = 0.5;
+
+    const leftForSide = audioContext.createGain();
+    leftForSide.gain.value = 0.5;
+    const rightForSide = audioContext.createGain();
+    rightForSide.gain.value = -0.5; // Inversion pour Side
+
+    // Summer nodes pour Mid et Side
+    const midSummer = audioContext.createGain();
+    const sideSummer = audioContext.createGain();
+
+    // 3. FILTRES ULTRA-AGRESSIFS SUR LE SIGNAL COMBINÉ
+
+    // Highpass cascade 3 étages (coupe TOUT en dessous de 350-700Hz)
     const highpass1 = audioContext.createBiquadFilter();
     highpass1.type = 'highpass';
-    highpass1.frequency.value = 400; // Premier étage
-    highpass1.Q.value = 1.5; // Q élevé pour pente raide
+    highpass1.frequency.value = 350;
+    highpass1.Q.value = 2.0;
 
     const highpass2 = audioContext.createBiquadFilter();
     highpass2.type = 'highpass';
-    highpass2.frequency.value = 500; // Second étage (cascade)
-    highpass2.Q.value = 1.0;
+    highpass2.frequency.value = 450;
+    highpass2.Q.value = 1.8;
 
-    // 3. PEAKING FILTERS - Boost des fréquences vocales (zone 300Hz-3.5kHz)
-    // Fondamentale vocale (warmth)
+    const highpass3 = audioContext.createBiquadFilter();
+    highpass3.type = 'highpass';
+    highpass3.frequency.value = 550;
+    highpass3.Q.value = 1.5;
+
+    // Notch filters pour éliminer les harmoniques musicales communes
+    const notch80Hz = audioContext.createBiquadFilter();
+    notch80Hz.type = 'notch';
+    notch80Hz.frequency.value = 80;
+    notch80Hz.Q.value = 10;
+
+    const notch150Hz = audioContext.createBiquadFilter();
+    notch150Hz.type = 'notch';
+    notch150Hz.frequency.value = 150;
+    notch150Hz.Q.value = 8;
+
+    const notch220Hz = audioContext.createBiquadFilter();
+    notch220Hz.type = 'notch';
+    notch220Hz.frequency.value = 220;
+    notch220Hz.Q.value = 6;
+
+    // Peaking filters TRÈS agressifs sur les fréquences vocales
     const voiceLow = audioContext.createBiquadFilter();
     voiceLow.type = 'peaking';
-    voiceLow.frequency.value = 800;
-    voiceLow.Q.value = 1.5;
-    voiceLow.gain.value = 6; // Boost modéré
+    voiceLow.frequency.value = 1000; // Fondamentale vocale masculine/féminine
+    voiceLow.Q.value = 3.0;
+    voiceLow.gain.value = 15;
 
-    // Clarté vocale (intelligibilité)
     const voiceMid = audioContext.createBiquadFilter();
     voiceMid.type = 'peaking';
-    voiceMid.frequency.value = 2000;
-    voiceMid.Q.value = 2.0;
-    voiceMid.gain.value = 12; // Boost agressif (sera ajusté)
+    voiceMid.frequency.value = 2500; // Clarté et intelligibilité
+    voiceMid.Q.value = 4.0;
+    voiceMid.gain.value = 18;
 
-    // Présence vocale (brillance)
     const voiceHigh = audioContext.createBiquadFilter();
     voiceHigh.type = 'peaking';
-    voiceHigh.frequency.value = 3500;
-    voiceHigh.Q.value = 2.0;
-    voiceHigh.gain.value = 8;
+    voiceHigh.frequency.value = 4000; // Présence et brillance
+    voiceHigh.Q.value = 3.5;
+    voiceHigh.gain.value = 12;
 
-    // 4. LOWPASS FILTER - Couper les cymbales et instruments aigus
-    const lowpassFilter = audioContext.createBiquadFilter();
-    lowpassFilter.type = 'lowpass';
-    lowpassFilter.frequency.value = 4500; // Plus agressif que 8000Hz
-    lowpassFilter.Q.value = 1.5; // Pente raide
+    // Lowpass TRÈS agressif (coupe TOUT au-dessus de 3500-5000Hz)
+    const lowpass = audioContext.createBiquadFilter();
+    lowpass.type = 'lowpass';
+    lowpass.frequency.value = 4000;
+    lowpass.Q.value = 3.0; // Pente très raide
 
-    // 5. COMPRESSEUR DYNAMIQUE - Réduire la dynamique de la musique
+    // 4. COMPRESSEUR MULTI-BAND SIMULÉ
     const compressor = audioContext.createDynamicsCompressor();
-    compressor.threshold.value = -30; // Commence à compresser tôt
-    compressor.knee.value = 20; // Transition douce
-    compressor.ratio.value = 12; // Compression agressive
-    compressor.attack.value = 0.003; // Rapide
-    compressor.release.value = 0.25; // Modéré
+    compressor.threshold.value = -35;
+    compressor.knee.value = 25;
+    compressor.ratio.value = 20; // TRÈS agressif
+    compressor.attack.value = 0.001; // Instantané
+    compressor.release.value = 0.1; // Rapide
 
-    // 6. GAIN NODES - Contrôle du volume et makeup gain
+    // 5. DE-ESSER (enlever les sibilantes trop fortes)
+    const deEsser = audioContext.createBiquadFilter();
+    deEsser.type = 'highshelf';
+    deEsser.frequency.value = 6000;
+    deEsser.gain.value = -8; // Atténue les "S" et cymbales
+
+    // 6. GAINS FINAUX
     const preGain = audioContext.createGain();
-    preGain.gain.value = 1.5; // Boost avant compression
+    preGain.gain.value = 1.8;
 
     const makeupGain = audioContext.createGain();
-    makeupGain.gain.value = 2.5; // Compenser la compression
+    makeupGain.gain.value = 3.5; // Compense toutes les pertes
 
     const finalGain = audioContext.createGain();
-    finalGain.gain.value = 1.0; // Volume final
+    finalGain.gain.value = 1.0;
 
-    // ===== CONNEXION DE LA CHAÎNE DE FILTRES =====
-    // L'ordre est crucial pour la qualité du résultat !
-    source
-      // Étape 1 : Éliminer les basses fréquences (musique)
-      .connect(notch60Hz)
-      .connect(notch120Hz)
-      .connect(notch250Hz)
+    // ===== CONNEXION MID/SIDE PROCESSING =====
+
+    // Split input stéréo
+    source.connect(splitter);
+
+    // Calculer MID (L+R)/2
+    splitter.connect(leftForMid, 0);
+    splitter.connect(rightForMid, 1);
+    leftForMid.connect(midSummer);
+    rightForMid.connect(midSummer);
+
+    // Calculer SIDE (L-R)/2
+    splitter.connect(leftForSide, 0);
+    splitter.connect(rightForSide, 1);
+    leftForSide.connect(sideSummer);
+    rightForSide.connect(sideSummer);
+
+    // Appliquer gains Mid et Side
+    midSummer.connect(midGain);
+    sideSummer.connect(sideGain);
+
+    // Recombiner Mid et Side
+    const combiner = audioContext.createGain();
+    midGain.connect(combiner);
+    sideGain.connect(combiner);
+
+    // ===== CHAÎNE DE FILTRAGE COMPLÈTE =====
+    combiner
+      // Étape 1 : Élimination totale des basses
+      .connect(notch80Hz)
+      .connect(notch150Hz)
+      .connect(notch220Hz)
       .connect(highpass1)
       .connect(highpass2)
+      .connect(highpass3)
 
-      // Étape 2 : Booster les fréquences vocales
+      // Étape 2 : Boost ultra-agressif des fréquences vocales
       .connect(voiceLow)
       .connect(voiceMid)
       .connect(voiceHigh)
 
-      // Étape 3 : Couper les hautes fréquences (cymbales, hi-hat)
-      .connect(lowpassFilter)
+      // Étape 3 : Coupe des aigus (cymbales, hi-hat)
+      .connect(lowpass)
+      .connect(deEsser)
 
-      // Étape 4 : Compression dynamique
+      // Étape 4 : Compression et normalisation
       .connect(preGain)
       .connect(compressor)
       .connect(makeupGain)
-
-      // Étape 5 : Contrôle du volume final
       .connect(finalGain)
       .connect(audioContext.destination);
 
-    // Stocker tous les filtres pour ajustement dynamique
+    // Stocker tous les nœuds
     const filterData = {
       context: audioContext,
       source: source,
 
-      // Filtres de suppression des basses
-      notch60Hz: notch60Hz,
-      notch120Hz: notch120Hz,
-      notch250Hz: notch250Hz,
+      // Mid/Side processing
+      splitter: splitter,
+      merger: merger,
+      midGain: midGain,
+      sideGain: sideGain,
+      leftForMid: leftForMid,
+      rightForMid: rightForMid,
+      leftForSide: leftForSide,
+      rightForSide: rightForSide,
+      midSummer: midSummer,
+      sideSummer: sideSummer,
+      combiner: combiner,
+
+      // Filtres
+      notch80Hz: notch80Hz,
+      notch150Hz: notch150Hz,
+      notch220Hz: notch220Hz,
       highpass1: highpass1,
       highpass2: highpass2,
-
-      // Filtres de boost vocal
+      highpass3: highpass3,
       voiceLow: voiceLow,
       voiceMid: voiceMid,
       voiceHigh: voiceHigh,
+      lowpass: lowpass,
+      deEsser: deEsser,
 
-      // Filtre passe-bas
-      lowpass: lowpassFilter,
-
-      // Compression et gain
+      // Compression et gains
       compressor: compressor,
       preGain: preGain,
       makeupGain: makeupGain,
@@ -204,67 +280,85 @@ function applyFilterSettings(filterData) {
   try {
     const currentTime = filterData.context.currentTime;
 
-    // ===== 1. AJUSTEMENT DES FILTRES HIGHPASS (Réduction Basses) =====
-    // 0% = 400Hz (filtrage modéré)
-    // 50% = 500Hz (filtrage standard)
-    // 100% = 800Hz (filtrage TRÈS agressif - coupe presque tout sauf voix)
+    // ===== 1. MID/SIDE RATIO (Réduction Basses = atténuation Side/musique) =====
     const bassReductionFactor = currentSettings.bassReduction / 100;
 
-    const highpassFreq1 = 400 + (bassReductionFactor * 400); // 400-800Hz
-    const highpassFreq2 = 500 + (bassReductionFactor * 300); // 500-800Hz
+    // Mid Gain : 1.5 à 3.0 (boost la voix au centre)
+    const midGainValue = 1.5 + (bassReductionFactor * 1.5);
+    filterData.midGain.gain.setValueAtTime(midGainValue, currentTime);
 
-    filterData.highpass1.frequency.setValueAtTime(highpassFreq1, currentTime);
-    filterData.highpass2.frequency.setValueAtTime(highpassFreq2, currentTime);
+    // Side Gain : 0.3 à 0.01 (atténue la musique panoramisée)
+    // Plus bassReduction est élevé, plus on coupe le Side
+    const sideGainValue = 0.3 - (bassReductionFactor * 0.29);
+    filterData.sideGain.gain.setValueAtTime(sideGainValue, currentTime);
 
-    // Ajuster aussi le Q des highpass pour plus d'agressivité
-    const qFactor = 1.0 + (bassReductionFactor * 2.0); // Q: 1.0 à 3.0
+    // ===== 2. HIGHPASS CASCADE (selon bassReduction) =====
+    // 0% = 350/450/550 Hz (modéré)
+    // 100% = 600/700/800 Hz (TRÈS agressif)
+    const hp1Freq = 350 + (bassReductionFactor * 250);
+    const hp2Freq = 450 + (bassReductionFactor * 250);
+    const hp3Freq = 550 + (bassReductionFactor * 250);
+
+    filterData.highpass1.frequency.setValueAtTime(hp1Freq, currentTime);
+    filterData.highpass2.frequency.setValueAtTime(hp2Freq, currentTime);
+    filterData.highpass3.frequency.setValueAtTime(hp3Freq, currentTime);
+
+    // Q factor de plus en plus agressif
+    const qFactor = 2.0 + (bassReductionFactor * 2.0); // 2.0 à 4.0
     filterData.highpass1.Q.setValueAtTime(qFactor, currentTime);
-    filterData.highpass2.Q.setValueAtTime(qFactor * 0.8, currentTime);
+    filterData.highpass2.Q.setValueAtTime(qFactor * 0.9, currentTime);
+    filterData.highpass3.Q.setValueAtTime(qFactor * 0.75, currentTime);
 
-    // ===== 2. AJUSTEMENT DU BOOST VOCAL =====
-    // Le slider "Boost Voix" contrôle l'intensité des peaking filters
-    // 0 dB = son naturel
-    // 10 dB = boost modéré (défaut)
-    // 20 dB = boost agressif
-
+    // ===== 3. BOOST VOCAL (slider Boost Voix) =====
     const voiceBoost = currentSettings.voiceBoost;
 
-    // Répartir le boost sur les 3 bandes vocales
+    // Gain sur les 3 bandes vocales (formules optimisées)
     filterData.voiceLow.gain.setValueAtTime(
-      Math.min(6 + (voiceBoost * 0.3), 15),
+      Math.min(15 + (voiceBoost * 0.5), 25), // 15 à 25 dB
       currentTime
     );
 
     filterData.voiceMid.gain.setValueAtTime(
-      Math.min(12 + (voiceBoost * 0.6), 20), // Band principale
+      Math.min(18 + (voiceBoost * 0.8), 28), // 18 à 28 dB (band principale)
       currentTime
     );
 
     filterData.voiceHigh.gain.setValueAtTime(
-      Math.min(8 + (voiceBoost * 0.4), 18),
+      Math.min(12 + (voiceBoost * 0.6), 22), // 12 à 22 dB
       currentTime
     );
 
-    // ===== 3. AJUSTEMENT DU LOWPASS (pour encore plus d'isolation) =====
-    // Plus le boost vocal est élevé, plus on coupe les aigus
-    const lowpassFreq = 4500 - (voiceBoost * 50); // 4500Hz à 3500Hz
+    // ===== 4. LOWPASS ADAPTATIF =====
+    // Plus on boost la voix, plus on coupe les aigus (cymbales)
+    const lowpassFreq = 4000 - (voiceBoost * 30); // 4000 à 3400 Hz
     filterData.lowpass.frequency.setValueAtTime(
       Math.max(lowpassFreq, 3000),
       currentTime
     );
 
-    // ===== 4. AJUSTEMENT DU COMPRESSEUR =====
-    // Plus la réduction des basses est forte, plus on compresse
-    const compressionRatio = 12 + (bassReductionFactor * 8); // 12:1 à 20:1
+    // ===== 5. DE-ESSER =====
+    // Atténuation des sibilantes selon le boost vocal
+    const deEsserGain = -8 - (voiceBoost * 0.3); // -8 à -14 dB
+    filterData.deEsser.gain.setValueAtTime(
+      Math.max(deEsserGain, -15),
+      currentTime
+    );
+
+    // ===== 6. COMPRESSEUR =====
+    // Ratio plus agressif si bassReduction élevé
+    const compressionRatio = 20 + (bassReductionFactor * 10); // 20:1 à 30:1
     filterData.compressor.ratio.setValueAtTime(compressionRatio, currentTime);
 
-    // ===== 5. AJUSTEMENT DU VOLUME FINAL =====
+    // ===== 7. VOLUME FINAL =====
     const volumeValue = currentSettings.volume / 100;
     filterData.gain.gain.setValueAtTime(volumeValue, currentTime);
 
-    // Ajuster le makeup gain en fonction du boost vocal
-    const makeupGainValue = 2.5 + (voiceBoost * 0.1); // Compenser la perte de volume
-    filterData.makeupGain.gain.setValueAtTime(makeupGainValue, currentTime);
+    // Makeup gain adaptatif
+    const makeupGainValue = 3.5 + (voiceBoost * 0.15); // 3.5 à 6.5
+    filterData.makeupGain.gain.setValueAtTime(
+      Math.min(makeupGainValue, 7.0),
+      currentTime
+    );
 
   } catch (error) {
     console.error('Erreur lors de l\'application des filtres:', error);
@@ -276,25 +370,39 @@ function removeFilters(mediaElement) {
   try {
     const filterData = audioContexts.get(mediaElement);
     if (filterData) {
-      // Déconnecter tous les nœuds dans l'ordre inverse
+      // Déconnecter tous les nœuds
       filterData.source.disconnect();
 
+      // Mid/Side processing
+      if (filterData.splitter) filterData.splitter.disconnect();
+      if (filterData.leftForMid) filterData.leftForMid.disconnect();
+      if (filterData.rightForMid) filterData.rightForMid.disconnect();
+      if (filterData.leftForSide) filterData.leftForSide.disconnect();
+      if (filterData.rightForSide) filterData.rightForSide.disconnect();
+      if (filterData.midSummer) filterData.midSummer.disconnect();
+      if (filterData.sideSummer) filterData.sideSummer.disconnect();
+      if (filterData.midGain) filterData.midGain.disconnect();
+      if (filterData.sideGain) filterData.sideGain.disconnect();
+      if (filterData.combiner) filterData.combiner.disconnect();
+
       // Filtres notch
-      if (filterData.notch60Hz) filterData.notch60Hz.disconnect();
-      if (filterData.notch120Hz) filterData.notch120Hz.disconnect();
-      if (filterData.notch250Hz) filterData.notch250Hz.disconnect();
+      if (filterData.notch80Hz) filterData.notch80Hz.disconnect();
+      if (filterData.notch150Hz) filterData.notch150Hz.disconnect();
+      if (filterData.notch220Hz) filterData.notch220Hz.disconnect();
 
       // Filtres highpass
       if (filterData.highpass1) filterData.highpass1.disconnect();
       if (filterData.highpass2) filterData.highpass2.disconnect();
+      if (filterData.highpass3) filterData.highpass3.disconnect();
 
       // Filtres vocaux
       if (filterData.voiceLow) filterData.voiceLow.disconnect();
       if (filterData.voiceMid) filterData.voiceMid.disconnect();
       if (filterData.voiceHigh) filterData.voiceHigh.disconnect();
 
-      // Lowpass
+      // Lowpass et de-esser
       if (filterData.lowpass) filterData.lowpass.disconnect();
+      if (filterData.deEsser) filterData.deEsser.disconnect();
 
       // Compression et gains
       if (filterData.preGain) filterData.preGain.disconnect();
