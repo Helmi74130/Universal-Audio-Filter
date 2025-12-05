@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Universal Audio Filter</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      width: 340px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Inter', sans-serif;
+      background: linear-gradient(to bottom, #0f0f0f, #1a1a1a);
+      color: #e5e5e5;
+      padding: 0;
+    }
+
+    .container {
+      padding: 20px;
+    }
+
+    .header {
+      text-align: center;
+      margin-bottom: 24px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid #2a2a2a;
+    }
+
+    .header h1 {
+      font-size: 18px;
+      font-weight: 600;
+      color: #ffffff;
+      margin-bottom: 4px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+
+    .header p {
+      font-size: 12px;
+      color: #888;
+    }
+
+    /* Toggle Switch moderne */
+    .toggle-section {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: #1f1f1f;
+      border: 1px solid #2a2a2a;
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 20px;
+      transition: all 0.2s ease;
+    }
+
+    .toggle-section:hover {
+      border-color: #3a3a3a;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    }
+
+    .toggle-label {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 14px;
+      font-weight: 500;
+    }
+
+    .toggle-switch {
+      position: relative;
+      width: 48px;
+      height: 26px;
+      background: #2a2a2a;
+      border-radius: 26px;
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+
+    .toggle-switch.active {
+      background: linear-gradient(135deg, #ef4444, #dc2626);
+      box-shadow: 0 0 20px rgba(239, 68, 68, 0.4);
+    }
+
+    .toggle-slider {
+      position: absolute;
+      top: 3px;
+      left: 3px;
+      width: 20px;
+      height: 20px;
+      background: white;
+      border-radius: 50%;
+      transition: all 0.3s ease;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    }
+
+    .toggle-switch.active .toggle-slider {
+      transform: translateX(22px);
+    }
+
+    /* Contrôles */
+    .control-group {
+      background: #1f1f1f;
+      border: 1px solid #2a2a2a;
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 12px;
+      transition: all 0.2s ease;
+    }
+
+    .control-group:hover {
+      border-color: #3a3a3a;
+    }
+
+    .control-label {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 12px;
+    }
+
+    .control-label span {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      font-weight: 500;
+      color: #d1d1d1;
+    }
+
+    .control-value {
+      font-size: 12px;
+      color: #ef4444;
+      font-weight: 600;
+      background: #2a1a1a;
+      padding: 4px 10px;
+      border-radius: 6px;
+    }
+
+    /* Slider moderne */
+    .slider {
+      width: 100%;
+      height: 6px;
+      border-radius: 6px;
+      background: #2a2a2a;
+      outline: none;
+      -webkit-appearance: none;
+      position: relative;
+      cursor: pointer;
+    }
+
+    .slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #ef4444, #dc2626);
+      cursor: pointer;
+      box-shadow: 0 2px 8px rgba(239, 68, 68, 0.4);
+      transition: all 0.2s ease;
+    }
+
+    .slider::-webkit-slider-thumb:hover {
+      transform: scale(1.1);
+      box-shadow: 0 4px 12px rgba(239, 68, 68, 0.6);
+    }
+
+    .slider::-moz-range-thumb {
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #ef4444, #dc2626);
+      cursor: pointer;
+      border: none;
+      box-shadow: 0 2px 8px rgba(239, 68, 68, 0.4);
+      transition: all 0.2s ease;
+    }
+
+    .slider::-moz-range-thumb:hover {
+      transform: scale(1.1);
+      box-shadow: 0 4px 12px rgba(239, 68, 68, 0.6);
+    }
+
+    /* Progress sur le slider */
+    .slider::-webkit-slider-runnable-track {
+      height: 6px;
+      border-radius: 6px;
+      background: linear-gradient(to right, #ef4444 0%, #ef4444 var(--value), #2a2a2a var(--value), #2a2a2a 100%);
+    }
+
+    /* Bouton Reset */
+    .reset-button {
+      width: 100%;
+      background: #1f1f1f;
+      border: 1px solid #2a2a2a;
+      color: #d1d1d1;
+      padding: 12px;
+      border-radius: 10px;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      margin-top: 8px;
+    }
+
+    .reset-button:hover {
+      background: #2a2a2a;
+      border-color: #ef4444;
+      color: #ef4444;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    }
+
+    .reset-button:active {
+      transform: translateY(0);
+    }
+
+    /* Status indicator */
+    .status {
+      text-align: center;
+      font-size: 11px;
+      color: #666;
+      margin-top: 16px;
+      padding-top: 12px;
+      border-top: 1px solid #2a2a2a;
+    }
+
+    .status.active {
+      color: #ef4444;
+    }
+
+    /* Animations */
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.6; }
+    }
+
+    .pulse {
+      animation: pulse 2s ease-in-out infinite;
+    }
+
+    /* Disabled state */
+    .disabled {
+      opacity: 0.5;
+      pointer-events: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <!-- Header -->
+    <div class="header">
+      <h1>
+        <span>🎤</span>
+        Audio Filter
+      </h1>
+      <p>Retirez la musique, gardez la voix</p>
+    </div>
+
+    <!-- Toggle Principal -->
+    <div class="toggle-section">
+      <div class="toggle-label">
+        <span id="statusEmoji">🎵</span>
+        <span id="statusText">Filtre désactivé</span>
+      </div>
+      <div class="toggle-switch" id="mainToggle">
+        <div class="toggle-slider"></div>
+      </div>
+    </div>
+
+    <!-- Contrôles -->
+    <div id="controls">
+      <!-- Filtre Basses -->
+      <div class="control-group">
+        <div class="control-label">
+          <span>🔊 Réduction Basses</span>
+          <span class="control-value" id="bassValue">50%</span>
+        </div>
+        <input type="range" min="0" max="100" value="50" class="slider" id="bassSlider">
+      </div>
+
+      <!-- Filtre Voix -->
+      <div class="control-group">
+        <div class="control-label">
+          <span>🎤 Boost Voix</span>
+          <span class="control-value" id="voiceValue">10 dB</span>
+        </div>
+        <input type="range" min="0" max="20" value="10" class="slider" id="voiceSlider">
+      </div>
+
+      <!-- Volume -->
+      <div class="control-group">
+        <div class="control-label">
+          <span>🔉 Volume</span>
+          <span class="control-value" id="volumeValue">100%</span>
+        </div>
+        <input type="range" min="0" max="100" value="100" class="slider" id="volumeSlider">
+      </div>
+
+      <!-- Reset Button -->
+      <button class="reset-button" id="resetButton">
+        ↺ Réinitialiser aux valeurs par défaut
+      </button>
+    </div>
+
+    <!-- Status -->
+    <div class="status" id="status">
+      Prêt à filtrer l'audio
+    </div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
