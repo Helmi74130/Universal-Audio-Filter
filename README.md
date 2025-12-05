@@ -74,24 +74,85 @@ Une extension Chrome moderne qui enlève la musique et garde la voix sur **TOUS*
  chrome.storage                            Web Audio API
 ```
 
-### Filtres audio (Web Audio API)
+### 🎯 Algorithme d'isolation vocale avancé (Web Audio API)
 
-L'extension utilise une chaîne de filtres audio :
+L'extension utilise un **algorithme professionnel multi-étages** pour isoler la voix :
 
-1. **Highpass Filter** (200-1000 Hz)
-   - Enlève les fréquences basses (basse, kick, etc.)
-   - Fréquence ajustable selon le slider "Réduction Basses"
+#### Étape 1 : Élimination des basses (Musique) 🔇
 
-2. **Peaking Filter** (3000 Hz)
-   - Boost les fréquences vocales (2-4 kHz)
-   - Gain ajustable de 0 à 20 dB
+1. **Notch Filters** - Ciblage précis des fréquences basse
+   - `60 Hz` (Q=5.0) - Sub-bass (kick électronique)
+   - `120 Hz` (Q=5.0) - Bass (ligne de basse)
+   - `250 Hz` (Q=3.0) - Low-mids (guitare basse)
 
-3. **Lowpass Filter** (8000 Hz)
-   - Filtre optionnel pour réduire les aigus excessifs
-   - Garde les harmoniques naturelles de la voix
+2. **Cascade de Highpass Filters** - Couper agressivement les basses
+   - `Highpass 1` : 400-800 Hz (Q élevé, pente raide)
+   - `Highpass 2` : 500-800 Hz (second étage pour renforcement)
+   - Ajustable via slider "Réduction Basses"
 
-4. **Gain Node**
-   - Contrôle du volume de sortie final
+#### Étape 2 : Boost des fréquences vocales 🎤
+
+3. **Triple Peaking Filters** - Ciblage de la zone vocale (300Hz-3.5kHz)
+   - `800 Hz` (+6 à 15 dB) - Fondamentale vocale (warmth)
+   - `2000 Hz` (+12 à 20 dB) - **Clarté vocale** (intelligibilité maximale)
+   - `3500 Hz` (+8 à 18 dB) - Présence vocale (brillance)
+   - Ajustable via slider "Boost Voix"
+
+#### Étape 3 : Suppression des hautes fréquences 🎸
+
+4. **Lowpass Filter agressif**
+   - `4500-3000 Hz` (adaptatif) - Coupe cymbales, hi-hat, instruments aigus
+   - S'ajuste automatiquement selon le boost vocal
+
+#### Étape 4 : Compression dynamique 🎚️
+
+5. **DynamicsCompressor** - Réduction de la dynamique musicale
+   - Threshold: -30 dB
+   - Ratio: 12:1 à 20:1 (adaptatif)
+   - Attack: 3ms (rapide)
+   - Release: 250ms (modéré)
+   - **Effet** : Réduit l'impact des pics musicaux
+
+#### Étape 5 : Contrôle du volume final 🔊
+
+6. **Gain Nodes** - Normalisation et contrôle
+   - Pre-gain (1.5x) - Boost avant compression
+   - Makeup gain (2.5-4.5x) - Compense la compression
+   - Volume final (0-100%) - Contrôle utilisateur
+
+### 📊 Chaîne de traitement complète
+
+```
+Audio Source
+    ↓
+[Notch 60Hz] → [Notch 120Hz] → [Notch 250Hz]
+    ↓
+[Highpass 400-800Hz] → [Highpass 500-800Hz]
+    ↓
+[Peaking 800Hz] → [Peaking 2kHz] → [Peaking 3.5kHz]
+    ↓
+[Lowpass 3000-4500Hz]
+    ↓
+[Pre-Gain 1.5x] → [Compressor 12:1] → [Makeup Gain 2.5x]
+    ↓
+[Volume Final 0-100%]
+    ↓
+Audio Output (Voix isolée 🎤)
+```
+
+### 🎛️ Ajustements intelligents
+
+Les sliders contrôlent **plusieurs paramètres simultanément** :
+
+**Slider "Réduction Basses"** :
+- Fréquence des highpass (400-800Hz)
+- Q factor des highpass (1.0-3.0)
+- Ratio de compression (12:1-20:1)
+
+**Slider "Boost Voix"** :
+- Gain des 3 peaking filters
+- Fréquence du lowpass (inversement)
+- Makeup gain du compresseur
 
 ### Gestion des edge cases
 
